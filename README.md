@@ -3,7 +3,7 @@ Create database table from a CSV
 
 This script scans all the columns and all the rows in a CSV to create a nice table in the `csv` database in your local machine.
 
-![csv to db screen shot](https://github.com/ziemekwolski/csv_to_db/screenshot-csv-to-db.jpg "CSV to DB example")
+![csv to db screen shot](https://github.com/ziemekwolski/csv_to_db/blob/main/screenshot-csv-to-db.jpg "CSV to DB example")
 
 ## Features
 1. Auto detect column type - 3 types currently supported: Integer, Decimal and Text
