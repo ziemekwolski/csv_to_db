@@ -1,0 +1,108 @@
+#!/usr/bin/env ruby
+
+require 'pg'
+require 'CSV'
+require 'bigdecimal'
+require 'pry'
+
+SPACES_AND_BRACKETS = /[\s\(\)]/
+DECIMAL_VALUE = /^[0-9.]*$/
+
+def determine_type(data, pervious_type)
+  data&.strip!
+  return pervious_type if data.nil? && !pervious_type.nil?
+
+  if data == data.to_i.to_s
+    if pervious_type == "decimal"
+      "decimal"
+    else
+      "integer"
+    end
+  elsif !data.nil? && data.match(DECIMAL_VALUE) && data.scan(/\./).count == 1
+    "decimal"
+  else
+    "text"
+  end
+end
+
+def absolute_path?
+  !!ARGV[0].match(/\//)
+end
+
+def get_file_name
+  if absolute_path?
+    ARGV[0].gsub(SPACES_AND_BRACKETS, "_").match(/\/([a-zA-Z0-9_\-.]*)$/)[1]
+  else
+    ARGV[0]
+  end
+end
+
+def get_full_path
+  if absolute_path?
+    ARGV[0]
+  else
+    "#{Dir.pwd}/#{ARGV[0]}"
+  end
+end
+
+def get_column_with_types(full_path)
+  used_name_count = {}
+  columns           = {}
+
+  line_count = 0
+  CSV.foreach(full_path, :headers => true).each do |data|
+    # raise "CSV has no data" if data.nil?
+    data.each_with_index do |column_data, indx|
+      header, value   = column_data
+      pervious_type   = columns.dig(indx, :type)
+      columns[indx] ||= {}
+
+      if columns[indx][:header_name].nil?
+
+        # TODO: Refactor into separate method
+        # account for duplicate names in spreadsheet
+        #
+        column_name = header_name(header)
+        used_name_count[column_name] ||= 0
+        used_name_count[column_name] += 1
+        if used_name_count[column_name] > 1
+          column_name = "#{column_name}_#{used_name_count[column_name]}"
+        end
+        columns[indx][:header_name] = column_name
+      end
+
+      columns[indx][:type] = determine_type(value, pervious_type)
+    end
+
+    line_count += 1
+  end
+  output = columns.map {|_indx, data| "\"#{data[:header_name]}\" #{data[:type]}" }
+end
+
+def header_name(header)
+  header.to_s.downcase.gsub(/ /, '_').gsub(/[^a-z0-9_\-)]/,'')
+end
+
+def get_table_name(file_name)
+  file_name.downcase.gsub(/\.csv/, "").gsub(/[\s-]/, "_")
+end
+
+def get_create_table_sql(table_name, columns_hash)
+  "CREATE TABLE #{table_name} (#{columns_hash.join(",")});"
+end
+
+
+full_path        = get_full_path
+file_name        = get_file_name
+table_name       = get_table_name(file_name)
+columns_hash     = get_column_with_types(full_path)
+create_table_sql = get_create_table_sql(table_name, columns_hash)
+
+
+conn = PG.connect( dbname: 'csv' )
+conn.exec("DROP TABLE IF EXISTS #{table_name}")
+conn.exec(create_table_sql)
+conn.exec("COPY #{table_name} FROM '#{full_path}' CSV HEADER;")
+
+puts "Database name: csv"
+puts "table name is: #{table_name}"
