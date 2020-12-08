@@ -1,4 +1,4 @@
-# CSV to db
+# CSV to DB
 Create database table from a CSV
 
 This script scans all the columns and all the rows in a CSV to create a nice table in the `csv` database in your local machine.
